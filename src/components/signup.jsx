@@ -1,7 +1,7 @@
 // src/components/Signup.js
 import React, { useState } from 'react';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../Config/Firebase';
+import { auth } from '../config/Firebase'; // Case-sensitive fix
 import { Box, TextField, Button, Typography, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 

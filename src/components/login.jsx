@@ -1,7 +1,7 @@
 // src/components/Login.js
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../Config/firebase';
+import { auth } from '../config/Firebase'; // Case-sensitive fix
 import { useNavigate } from 'react-router-dom';
 import { Box, TextField, Button, Typography, CircularProgress } from '@mui/material';
 
