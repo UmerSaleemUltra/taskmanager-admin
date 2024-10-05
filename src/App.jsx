@@ -2,8 +2,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import AssignTask from './components/assigntasks'; // Admin component
-import Login from './components/login';
-import Signup from './components/signup';
+
 
 const App = () => {
   return (
@@ -13,9 +12,7 @@ const App = () => {
        
         <Routes>
           <Route path="/" element={<AssignTask />} />
-          <Route path="/login" element={<Login/>} />
-          <Route path="/signup" element={<Signup/>} />
-
+     ]
         </Routes>
       </div>
     </Router>

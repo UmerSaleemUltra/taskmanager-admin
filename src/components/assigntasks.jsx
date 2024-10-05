@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../Config/firebase';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import {
   Container,
   Box,
@@ -17,32 +17,29 @@ import {
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import dayjs from 'dayjs'; // Import dayjs for date manipulation
 
 const YourComponent = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState('');
   const [task, setTask] = useState('');
-  const [status, setStatus] = useState('Pending'); // Status field
+  const [status, setStatus] = useState('Pending');
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredUsers, setFilteredUsers] = useState(users);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [editingUser, setEditingUser] = useState(null); // State for editing
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'users'));
-        const items = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setUsers(items);
-        setFilteredUsers(items); // Initialize filtered users
-      } catch (error) {
-        console.error('Error fetching users: ', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setUsers(items);
+      setFilteredUsers(items);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error fetching users: ', error);
+      setLoading(false);
+    });
 
-    fetchData();
+    return () => unsubscribe();
   }, []);
 
   const handleAssignTask = async (e) => {
@@ -56,17 +53,8 @@ const YourComponent = () => {
       const userRef = doc(db, 'users', selectedUser);
       await updateDoc(userRef, {
         task: task.trim(),
-        status, // Adding status field
+        status,
       });
-
-      // Update the local state for the user
-      setUsers((prevUsers) =>
-        prevUsers.map((user) =>
-          user.id === selectedUser
-            ? { ...user, task: task.trim(), status }
-            : user
-        )
-      );
 
       alert('Task assigned successfully!');
       resetForm();
@@ -75,20 +63,60 @@ const YourComponent = () => {
     }
   };
 
+  const handleEditTask = (user) => {
+    // Set the editing user and fill form
+    setEditingUser(user);
+    setSelectedUser(user.id);
+    setTask(user.task);
+    setStatus(user.status);
+  };
+
+  const handleUpdateTask = async (e) => {
+    e.preventDefault();
+    if (!selectedUser || !task.trim()) {
+      alert('Please select a user and enter a valid task');
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'users', selectedUser);
+      await updateDoc(userRef, {
+        task: task.trim(),
+        status,
+      });
+
+      alert('Task updated successfully!');
+      resetForm();
+      setEditingUser(null); // Reset editing user
+    } catch (error) {
+      console.error('Error updating task: ', error);
+    }
+  };
+
+  const handleDeleteTask = async (userId) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this task?");
+    if (confirmDelete) {
+      try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+          task: '', // Clear the task
+          status: 'Deleted' // Optionally mark as deleted
+        });
+
+        alert('Task deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting task: ', error);
+      }
+    }
+  };
+
   const handleCompleteTask = async (userId) => {
     try {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
-        task: '', // Clear the task field
-        status: 'Completed', // Set status to Completed
+        task: '',
+        status: 'Completed',
       });
-
-      // Update the local state to remove the completed task
-      setUsers((prevUsers) =>
-        prevUsers.map((user) =>
-          user.id === userId ? { ...user, task: '', status: 'Completed' } : user
-        )
-      );
 
       alert('Task marked as complete successfully!');
     } catch (error) {
@@ -106,9 +134,10 @@ const YourComponent = () => {
   };
 
   const resetForm = () => {
-    setTask(''); // Reset task input
-    setStatus('Pending'); // Reset status
-    setSelectedUser(''); // Reset selected user
+    setTask('');
+    setStatus('Pending');
+    setSelectedUser('');
+    setEditingUser(null); // Reset editing user
   };
 
   if (loading) {
@@ -124,9 +153,9 @@ const YourComponent = () => {
       <Container maxWidth="md">
         <Box my={4}>
           <Paper elevation={3} sx={{ padding: '20px' }}>
-            <form onSubmit={handleAssignTask}>
+            <form onSubmit={editingUser ? handleUpdateTask : handleAssignTask}>
               <Box mb={3}>
-                <Typography variant="h6">Select User:</Typography>
+                <Typography variant="h6">{editingUser ? 'Edit Task' : 'Select User:'}</Typography>
                 <Select
                   fullWidth
                   value={selectedUser}
@@ -139,7 +168,7 @@ const YourComponent = () => {
                   </MenuItem>
                   {filteredUsers.map((user) => (
                     <MenuItem key={user.id} value={user.id}>
-                      {user.names} {/* Adjusted to match Firestore field */}
+                      {user.names}
                     </MenuItem>
                   ))}
                 </Select>
@@ -171,7 +200,7 @@ const YourComponent = () => {
               </Box>
 
               <Button type="submit" variant="contained" color="primary" fullWidth>
-                Assign Task
+                {editingUser ? 'Update Task' : 'Assign Task'}
               </Button>
             </form>
           </Paper>
@@ -191,23 +220,30 @@ const YourComponent = () => {
             />
 
             <List>
-              {filteredUsers.map((user) => (
-                <ListItem key={user.id} component={Paper} elevation={1} sx={{ mb: 2 }}>
-                  <ListItemText
-                    primary={`Name: ${user.names}`}
-                    secondary={
-                      user.status === 'Completed'
-                        ? 'Task Completed' // Indicate that the task is completed
-                        : `Task: ${user.task || 'No task assigned'} - Status: ${user.status || 'N/A'}`
-                    }
-                  />
-                  {user.task && user.status !== 'Completed' && ( // Only show the complete button if there's a task
-                    <Button onClick={() => handleCompleteTask(user.id)} color="success" size="small">
-                      Complete
-                    </Button>
-                  )}
-                </ListItem>
-              ))}
+              {filteredUsers
+                .filter(user => user.status !== 'Deleted') // Filter out deleted tasks
+                .map((user) => (
+                  // Render only if the task is not completed
+                  user.status !== 'Completed' && (
+                    <ListItem key={user.id} component={Paper} elevation={1} sx={{ mb: 2 }}>
+                      <ListItemText
+                        primary={`Name: ${user.names}`}
+                        secondary={`Task: ${user.task || 'No task assigned'} - Status: ${user.status || 'N/A'}`}
+                      />
+                      <Box>
+                        <Button onClick={() => handleEditTask(user)} color="primary" size="small">
+                          Edit
+                        </Button>
+                        <Button onClick={() => handleCompleteTask(user.id)} color="success" size="small">
+                          Complete
+                        </Button>
+                        <Button onClick={() => handleDeleteTask(user.id)} color="error" size="small">
+                          Delete
+                        </Button>
+                      </Box>
+                    </ListItem>
+                  )
+                ))}
             </List>
           </Box>
         </Box>
