@@ -1,7 +1,6 @@
-// src/components/Signup.js
 import React, { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../config/Firebase'; // Case-sensitive fix
+import { createUserWithEmailAndPassword } from 'firebase/auth'; // Firebase Auth
+import { auth } from '../config/firebaseConfig'; // Import Firebase Auth instance from your config
 import { Box, TextField, Button, Typography, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,13 +15,16 @@ const Signup = () => {
     e.preventDefault();
     setLoading(true);
     setError(''); // Reset error on new attempt
+
     try {
+      // Firebase function to create a new user with email and password
       await createUserWithEmailAndPassword(auth, email, password);
-      // Optionally handle success or redirect
-      navigate('/login'); // Redirect to tasks page or wherever you want
+
+      // Optionally, redirect to login or another page after successful signup
+      navigate('/login');
     } catch (error) {
       console.error('Error signing up:', error.message);
-      setError(error.message); // Set error message for display
+      setError(error.message); // Display error message
     } finally {
       setLoading(false);
     }
